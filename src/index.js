@@ -1,7 +1,7 @@
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname === "/") return text("N7 Prompting API: /prompts /random /status");
+    if (url.pathname === "/") return text("N7 Promoting Sheet API: /prompts /random /status");
     if (url.pathname === "/prompts") return listPrompts(env);
     if (url.pathname === "/random") return randomPrompt(env);
     if (url.pathname === "/status") return status(env);
