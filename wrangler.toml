@@ -12,4 +12,4 @@ id = "1eaab40b3801440b90080d5942e37d4d"
 crons = [ "0 * * * *" ]
 
 [vars]
-N7_TITLE = "N7 Prompting Cheat Sheet"
+N7_TITLE = "N7 Prompting Sheet"
