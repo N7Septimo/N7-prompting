@@ -6,7 +6,7 @@ compatibility_date = "2024-12-01"
 # The dashboard binding overrides this. If using CLI, fill in your real ID:
 [[kv_namespaces]]
 binding = "PROMPTS_KV"
-id = "REPLACE_WITH_NAMESPACE_ID"
+id = "1eaab40b3801440b90080d5942e37d4d"
 
 [triggers]
 crons = [ "0 * * * *" ]
