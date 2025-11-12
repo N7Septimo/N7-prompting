@@ -5,7 +5,7 @@ export default {
     // Minimal HTML UI
     if (url.pathname === "/ui") return uiPage(env);
 
-    if (url.pathname === "/") return text("N7 Promting Sheet API: /prompts /random /status /ui");
+    if (url.pathname === "/") return text("N7 Promoting Sheet API: /prompts /random /status /ui");
     if (url.pathname === "/prompts") return listPrompts(env);
     if (url.pathname === "/random") {
       const tag = url.searchParams.get("tag");
@@ -17,7 +17,7 @@ export default {
 
   async scheduled(event, env, ctx) {
     const now = new Date().toISOString();
-    await env.PROMPT_KV.put("last_update", now);
+    await env.PROMPTS_KV.put("last_update", now);
   }
 };
 
@@ -32,9 +32,9 @@ function json(obj, status = 200) {
 }
 
 async function getCatalog(env) {
-  const cached = await env.PROMPT_KV.get("catalog", "json");
+  const cached = await env.PROMPTS_KV.get("catalog", "json");
   if (cached) return cached;
-  await env.PROMPT_KV.put("catalog", JSON.stringify(SEED));
+  await env.PROMPTS_KV.put("catalog", JSON.stringify(SEED));
   return SEED;
 }
 async function listPrompts(env) {
@@ -67,7 +67,7 @@ function count(d) {
 // ---- UI ----
 function html(body, title = "N7 Promoting Sheet") {
   return new Response(
-    `<!doctype html>
+`<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${title}</title>
 <style>
