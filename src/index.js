@@ -5,7 +5,7 @@ export default {
     // Minimal HTML UI
     if (url.pathname === "/ui") return uiPage(env);
 
-    if (url.pathname === "/") return text("N7 Promoting Sheet API: /prompts /random /status /ui");
+    if (url.pathname === "/") return text("N7 Prompting Sheet API: /prompts /random /status /ui");
     if (url.pathname === "/prompts") return listPrompts(env);
     if (url.pathname === "/random") {
       const tag = url.searchParams.get("tag");
