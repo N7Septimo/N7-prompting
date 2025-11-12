@@ -1,3 +1,5 @@
+// N7 Promoting Sheet – Worker
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -5,13 +7,50 @@ export default {
     // Minimal HTML UI
     if (url.pathname === "/ui") return uiPage(env);
 
-    if (url.pathname === "/") return text("N7 Prompting Sheet API: /prompts /random /status /ui");
+    // --- ADMIN (secured with Bearer ADMIN_TOKEN) ---
+    if (url.pathname.startsWith("/admin")) {
+      if (!checkAuth(request, env)) return json({ error: "Unauthorized" }, 401);
+
+      // Bulk import/merge catalog
+      if (request.method === "POST" && url.pathname === "/admin/bulk") {
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== "object") return json({ error: "Bad JSON" }, 400);
+        const mode = (url.searchParams.get("mode") || "merge").toLowerCase(); // replace|merge
+        if (mode === "replace") {
+          await env.PROMPTS_KV.put("catalog", JSON.stringify(body));
+        } else {
+          const current = await getCatalog(env);
+          const merged = mergeCatalog(current, body);
+          await env.PROMPTS_KV.put("catalog", JSON.stringify(merged));
+        }
+        await env.PROMPTS_KV.put("last_update", new Date().toISOString());
+        return json({ ok: true });
+      }
+
+      // Quick add one prompt
+      if (request.method === "POST" && url.pathname === "/admin/add") {
+        const { category, prompt, tags = [], notes = null } = await request.json().catch(() => ({}));
+        if (!category || !prompt) return json({ error: "category and prompt required" }, 400);
+        const current = await getCatalog(env);
+        current[category] = current[category] || [];
+        current[category].push({ prompt: String(prompt), tags: Array.isArray(tags) ? tags : [], notes });
+        await env.PROMPTS_KV.put("catalog", JSON.stringify(current));
+        await env.PROMPTS_KV.put("last_update", new Date().toISOString());
+        return json({ ok: true, category, added: { prompt, tags, notes } });
+      }
+
+      return json({ error: "Not Found" }, 404);
+    }
+    // --- END ADMIN ---
+
+    if (url.pathname === "/") return text("N7 Promoting Sheet API: /prompts /random /status /ui");
     if (url.pathname === "/prompts") return listPrompts(env);
     if (url.pathname === "/random") {
       const tag = url.searchParams.get("tag");
       return randomPrompt(env, tag); // supports ?tag=aws
     }
     if (url.pathname === "/status") return status(env);
+
     return json({ error: "Not Found" }, 404);
   },
 
@@ -20,6 +59,13 @@ export default {
     await env.PROMPTS_KV.put("last_update", now);
   }
 };
+
+// ---------- helpers ----------
+function checkAuth(request, env) {
+  const h = request.headers.get("authorization") || "";
+  const token = h.startsWith("Bearer ") ? h.slice(7) : "";
+  return Boolean(token && env.ADMIN_TOKEN && token === env.ADMIN_TOKEN);
+}
 
 function text(s, status = 200) {
   return new Response(s, { status, headers: { "content-type": "text/plain" } });
@@ -44,27 +90,37 @@ async function listPrompts(env) {
 async function status(env) {
   const last = await env.PROMPTS_KV.get("last_update");
   const d = await getCatalog(env);
-  return json({
-    title: env.N7_TITLE,
-    last_update: last || null,
-    categories: Object.keys(d),
-    total: count(d)
-  });
+  return json({ title: env.N7_TITLE, last_update: last || null, categories: Object.keys(d), total: count(d) });
 }
-function flatten(d) {
-  const out = [];
-  for (const [cat, items] of Object.entries(d)) {
-    for (const p of items) {
-      out.push({ category: cat, prompt: p.prompt, notes: p.notes || null, tags: p.tags || [] });
-    }
+
+async function randomPrompt(env, tag) {
+  const d = await getCatalog(env);
+  let flat = flatten(d);
+  if (tag) flat = flat.filter(p => (p.tags || []).includes(tag));
+  if (!flat.length) return json({ error: "No prompts for that tag" }, 404);
+  const pick = flat[Math.floor(Math.random() * flat.length)];
+  return json({ title: env.N7_TITLE, ...pick });
+}
+
+function mergeCatalog(base, incoming) {
+  const out = structuredClone(base);
+  for (const [cat, items] of Object.entries(incoming)) {
+    out[cat] = out[cat] || [];
+    for (const p of items) out[cat].push(p);
   }
   return out;
 }
-function count(d) {
-  return Object.values(d).reduce((n, a) => n + a.length, 0);
-}
 
-// ---- UI ----
+function flatten(d) {
+  const out = [];
+  for (const [cat, items] of Object.entries(d)) {
+    for (const p of items) out.push({ category: cat, prompt: p.prompt, notes: p.notes || null, tags: p.tags || [] });
+  }
+  return out;
+}
+function count(d) { return Object.values(d).reduce((n, a) => n + a.length, 0); }
+
+// ---------- UI ----------
 function html(body, title = "N7 Promoting Sheet") {
   return new Response(
 `<!doctype html>
@@ -84,27 +140,21 @@ code{background:#000;color:#0f0;padding:8px;border-radius:10px;display:block;whi
 .pill{padding:4px 8px;border-radius:999px;background:#111;color:#fff;font-size:12px}
 .grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
 </style>
-<header> N7 Promoting Sheet</header>
+<header>📜 N7 Promoting Sheet</header>
 <main>
   <div class="card">
     <div class="row">
-      <button id="btn-random">Random</button>
+      <button id="btn-random">✨ Random</button>
       <select id="tag-select"><option value="">All tags</option></select>
       <button class="ghost" id="btn-copy">Copy</button>
     </div>
     <div id="out" style="margin-top:10px;"><div class="muted">Tap Random to fetch a prompt.</div></div>
   </div>
-
   <div class="card" id="status"><div class="muted">Status loading…</div></div>
-
-  <div class="card">
-    <div class="muted">Categories</div>
-    <div id="cats" class="grid"></div>
-  </div>
+  <div class="card"><div class="muted">Categories</div><div id="cats" class="grid"></div></div>
 </main>
 <script>
 const W = location.origin;
-
 async function loadStatus(){
   const res = await fetch(W + '/status'); const j = await res.json();
   document.getElementById('status').innerHTML =
@@ -132,13 +182,9 @@ async function random(tag){
   out.dataset.text = j.prompt || '';
 }
 function escapeHtml(s){return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\\'':'&#39;' }[m]))}
-
 document.getElementById('btn-random').onclick = ()=>random(document.getElementById('tag-select').value);
-document.getElementById('btn-copy').onclick = async ()=>{
-  const t = document.getElementById('out').dataset.text || '';
-  try { await navigator.clipboard.writeText(t); alert('Copied'); } catch { prompt('Copy', t); }
-};
-
+document.getElementById('btn-copy').onclick = async ()=>{ const t = document.getElementById('out').dataset.text || '';
+  try { await navigator.clipboard.writeText(t); alert('Copied'); } catch { prompt('Copy', t); } };
 loadStatus(); loadTags();
 </script>`,
     { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } }
@@ -146,17 +192,7 @@ loadStatus(); loadTags();
 }
 async function uiPage(env) { return html('', env.N7_TITLE || 'N7 Promoting Sheet'); }
 
-// randomPrompt with optional tag filter
-async function randomPrompt(env, tag) {
-  const d = await getCatalog(env);
-  let flat = flatten(d);
-  if (tag) flat = flat.filter(p => (p.tags || []).includes(tag));
-  if (!flat.length) return json({ error: "No prompts for that tag" }, 404);
-  const pick = flat[Math.floor(Math.random() * flat.length)];
-  return json({ title: env.N7_TITLE, ...pick });
-}
-
-// ---- Seed & catalog ----
+// ---------- seed ----------
 const SEED = {
   "Tech Automation": [
     { "prompt": "Act as an AWS DevOps engineer. Write a Python 3.11 Lambda that pulls Rules.conf from S3, validates sections, deduplicates domains, and writes the optimized file back to S3 with versioning. Output only the final code.", "tags": ["aws","lambda","s3","shadowrocket"], "notes": "Add IAM least-privilege and CloudWatch metrics." },
