@@ -140,11 +140,11 @@ code{background:#000;color:#0f0;padding:8px;border-radius:10px;display:block;whi
 .pill{padding:4px 8px;border-radius:999px;background:#111;color:#fff;font-size:12px}
 .grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
 </style>
-<header>📜 N7 Promoting Sheet</header>
+<header> N7 Promoting Sheet</header>
 <main>
   <div class="card">
     <div class="row">
-      <button id="btn-random">✨ Random</button>
+      <button id="btn-random"> Random</button>
       <select id="tag-select"><option value="">All tags</option></select>
       <button class="ghost" id="btn-copy">Copy</button>
     </div>
