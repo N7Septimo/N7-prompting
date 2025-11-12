@@ -17,7 +17,7 @@ export default {
 
   async scheduled(event, env, ctx) {
     const now = new Date().toISOString();
-    await env.PROMPTS_KV.put("last_update", now);
+    await env.PROMPT_KV.put("last_update", now);
   }
 };
 
@@ -32,9 +32,9 @@ function json(obj, status = 200) {
 }
 
 async function getCatalog(env) {
-  const cached = await env.PROMPTS_KV.get("catalog", "json");
+  const cached = await env.PROMPT_KV.get("catalog", "json");
   if (cached) return cached;
-  await env.PROMPTS_KV.put("catalog", JSON.stringify(SEED));
+  await env.PROMPT_KV.put("catalog", JSON.stringify(SEED));
   return SEED;
 }
 async function listPrompts(env) {
