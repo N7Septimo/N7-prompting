@@ -6,6 +6,7 @@ export default {
 
     // Minimal HTML UI
     if (url.pathname === "/ui") return uiPage(env);
+    if (url.pathname === "/p") return permalink(env, url);
 
     // --- ADMIN (secured with Bearer ADMIN_TOKEN) ---
     if (url.pathname.startsWith("/admin")) {
@@ -101,7 +102,34 @@ async function randomPrompt(env, tag) {
   const pick = flat[Math.floor(Math.random() * flat.length)];
   return json({ title: env.N7_TITLE, ...pick });
 }
+async function permalink(env, url) {
+  // ?cat=Testing&i=0
+  const cat = url.searchParams.get("cat");
+  const i = Number(url.searchParams.get("i"));
 
+  if (!cat || Number.isNaN(i)) {
+    return json({ error: "Missing cat or i" }, 400);
+  }
+
+  const catalog = await getCatalog(env);
+  const list = catalog[cat];
+
+  if (!list || !list[i]) {
+    return json({ error: "Prompt not found" }, 404);
+  }
+
+  const p = list[i];
+
+  return json({
+    title: env.N7_TITLE,
+    link: url.toString(),
+    category: cat,
+    index: i,
+    prompt: p.prompt,
+    tags: p.tags || [],
+    notes: p.notes || null
+  });
+}
 function mergeCatalog(base, incoming) {
   const out = structuredClone(base);
   for (const [cat, items] of Object.entries(incoming)) {
